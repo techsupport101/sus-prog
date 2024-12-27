@@ -1,22 +1,47 @@
 #include "main.h"
+#include "pros/abstract_motor.hpp"
+#include "pros/misc.h"
+#include "pros/misc.hpp"
+#include "pros/motors.hpp"
 #include "pros/rtos.hpp"
 #include "pros/vision.hpp"
 #include "pros/llemu.hpp"
 #include "pros/motors.hpp"
 #include "pros/motor_group.hpp"
 #include "pros/rotation.hpp"
+#include <cmath>
+#include <numbers>
 
 /****ACTUAL ROBOT CODE****/
 //defining global variables
 int sortedColor; //0 = keep blue fling red, 1 = keep red fling blue, 2 = keep all no fling
 bool autonColor; //T = blue, F = red
 bool autonSide; //T = close, F = far
+int wheelCirc = 220; // in mm
+int driveEncoders = 300; //ticks per rev
+double trackWidth = 9.81 * 25.4; //mm
+
+//defining constructors for everything lol
+//defining motors
+pros::MotorGroup left ({1, 2, 3}, pros::MotorGearset::blue);
+pros::MotorGroup right({11, 12, 13}, pros::MotorGearset::blue);
+pros::Motor roller (4, pros::MotorGearset::green); //5.5
+pros::Motor chain (14, pros::MotorGearset::green); //5.5
+pros::Motor lb (6, pros::MotorGearset::green); //5.5
+pros::Motor mogo (5, pros::MotorGearset::green); //5.5
+//defining sensors
+pros::Vision vision (10);
+pros::Rotation lbRot (9);
+//defining controller
+pros::Controller ctrl (CONTROLLER_MASTER);
 
 void initialize() {
 	pros::lcd::initialize();
 	pros::lcd::print(5, "Initialized");
+	ctrl.rumble("-");
 }
 
+//lcd stuffs
 void on_left_button() {
 	if(sortedColor >= 2 && sortedColor <= 0) {
 		sortedColor++;
@@ -59,31 +84,81 @@ void on_right_button() {
 	}
 }
 
+//color sort funcs
+void donut_detected() { // define
+	chain.set_brake_mode(pros::MotorBrake::brake); //to effectively fling
+	ctrl.rumble("."); //alerts driver
+	pros::delay(90); //adjustable
+	chain.brake();
+	pros::delay(1);
+}
+
+void donut_not_detected() { //define
+	//resets it to coast when not sorting
+	chain.set_brake_mode(pros::MotorBrake::coast);	
+}
+
+//autonomous functions
+void drive(int inDist, bool dir, int rpm) {
+	left.tare_position();
+	right.tare_position();
+	double mmDist = inDist * 25.4;
+	double rotations = round(10*(mmDist / wheelCirc)) * 0.1;
+	double ticks = round(rotations * driveEncoders);
+	double pause = (rotations / rpm) * 60000;
+
+	if(dir) { //front
+		left.move_absolute(ticks, rpm);
+		right.move_absolute(ticks, rpm);
+	}
+	else { //back
+		left.move_absolute(-1 * ticks, rpm);
+		right.move_absolute(-1 * ticks, rpm);
+	}
+
+	pros::delay(pause);
+}
+
+void turn(double degrees, bool dir, int rpm) {
+	left.tare_position();
+	right.tare_position();
+	double mmWheelCirc = wheelCirc * 25.4;
+	double turnCirc = std::numbers::pi * trackWidth;
+	double arcLen = (degrees/360) * turnCirc;
+	double rotations = arcLen / mmWheelCirc;
+	double ticks = round(rotations * driveEncoders);
+	double pause = (rotations / rpm) * 60000;
+
+	if(dir) { //left
+		left.move_absolute(-1 * ticks, rpm);
+		right.move_absolute(ticks, rpm);
+	}
+	else { //right
+		left.move_absolute(ticks, rpm);
+		right.move_absolute(-1 * ticks, rpm);
+	}
+
+	pros::delay(pause);
+}
+
 void autonomous() {
 	//comp control mode flag
-	pros::lcd::print(5, "Driver Control");
+	pros::lcd::print(5, "Autonomous");
 
-	//insert auton here
+	//test auto
+	drive(24, true, 200);
+	turn(90.0, true, 100);
+	drive(24, false, 200);
+	turn(90.0, true, 100);
+	drive(24, true, 200);
+	turn(90.0, false, 100);
+	drive(24, true, 200);
+	turn(720.0, false, 100);
 }
 
 void opcontrol() {
 	//comp control mode flag
 	pros::lcd::print(5, "Driver Control");
-
-	//defining motors
-	pros::MotorGroup left ({1, 2, 3}, pros::MotorGearset::blue);
-	pros::MotorGroup right({11, 12, 13}, pros::MotorGearset::blue);
-	pros::Motor roller (4, pros::MotorGearset::green); //5.5
-	pros::Motor chain (14, pros::MotorGearset::green); //5.5
-	pros::Motor lb (6, pros::MotorGearset::green); //5.5
-	pros::Motor mogo (5, pros::MotorGearset::green); //5.5
-
-	//defining sensors (add rot)
-	pros::Vision vision (10);
-	pros::Rotation lbRot (9);
-
-	//defining controller
-	pros::Controller ctrl (CONTROLLER_MASTER);
 
 	//setting motor brake (chain changes so it is set in whiletrue)
 	left.set_brake_mode_all(pros::MotorBrake::coast);
@@ -134,7 +209,14 @@ void opcontrol() {
 		//color sort
 		pros::vision_object_s_t flingBlue = vision.get_by_sig(0, 1); //sorts out red donuts
 		pros::vision_object_s_t flingRed = vision.get_by_sig(0, 2); //sorts out blue donuts
-
+		if (chain.get_brake_mode() == pros::MotorBrake::coast){
+			if(ctrl.get_digital(DIGITAL_R2)) {
+				chain.move(200);
+			}
+			else if(ctrl.get_digital(DIGITAL_R1)) {
+				chain.move(-200);
+			}
+		}
 		//disable color sort double keybind
 		if(ctrl.get_digital(DIGITAL_X) && ctrl.get_digital(DIGITAL_UP)) {
 			sortedColor = 2;
@@ -142,58 +224,21 @@ void opcontrol() {
 		else {
 			sortedColor = sortedColor;
 		}
+		pros::Task color_sort([flingRed, flingBlue]{ // color checking task
+			if(sortedColor) { //keep blue fling red
+				if(flingRed.signature == 1) {donut_detected();}
+				else {donut_not_detected();}
+			}
+			else { //the other 2
+				if(sortedColor == 1) {
+					if(flingBlue.signature == 1) {donut_detected();}
+					else {donut_not_detected();}
+				}
+				else if(sortedColor == 2) {donut_not_detected();}
+			}
+			pros::delay(10);
+		});
 
-		if(sortedColor) { //keep blue fling red
-			if(flingRed.signature == 1) {
-				chain.set_brake_mode(pros::MotorBrake::brake);
-				ctrl.rumble(".");
-				pros::delay(90);
-				chain.brake();
-				pros::delay(1);
-			}
-			else {
-				//chain code (roller is indep. of color sort)
-				chain.set_brake_mode(pros::MotorBrake::coast);	
-				if(ctrl.get_digital(DIGITAL_R2)) {
-					chain.move(200);
-				}
-				else if(ctrl.get_digital(DIGITAL_R1)) {
-					chain.move(-200);
-				}
-			}
-		}
-		else { //the other 2
-			if(sortedColor == 1) {
-				if(flingBlue.signature == 1) {
-					chain.set_brake_mode(pros::MotorBrake::brake);
-					ctrl.rumble(".");
-					pros::delay(90);
-					chain.brake();
-					pros::delay(1);
-				}
-				else {
-					//chain code (roller is indep. of color sort)
-					chain.set_brake_mode(pros::MotorBrake::coast);	
-					if(ctrl.get_digital(DIGITAL_R2)) {
-						chain.move(200);
-					}
-					else if(ctrl.get_digital(DIGITAL_R1)) {
-						chain.move(-200);
-					}
-				}
-			}
-			else if(sortedColor == 2) {
-				//chain code (roller is indep. of color sort)
-				chain.set_brake_mode(pros::MotorBrake::coast);	
-				if(ctrl.get_digital(DIGITAL_L2)) {
-					chain.move(200);
-				}
-				else if(ctrl.get_digital(DIGITAL_L1)) {
-					chain.move(-200);
-				}
-			}
-		}
-		
 		//roller
 		if(ctrl.get_digital(DIGITAL_R2)) {
 			roller.move(200);
@@ -203,10 +248,11 @@ void opcontrol() {
 		}
 
 		//lady brown (future)
+		//using set positions
 
 		//mogo mech (future)
 		if(ctrl.get_digital(DIGITAL_Y)) {
-			mogo.move_absolute(225, 200);
+			mogo.move_absolute(225, 200); //rotates 1/4 a rotation
 		}
 		else{
 			mogo.move_absolute(0, 200);
