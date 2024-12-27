@@ -1,4 +1,8 @@
 #include "main.h"
+#include "pros/abstract_motor.hpp"
+#include "pros/misc.h"
+#include "pros/misc.hpp"
+#include "pros/motors.h"
 #include "pros/rtos.hpp"
 #include "pros/vision.hpp"
 #include "pros/llemu.hpp"
@@ -59,6 +63,22 @@ void on_right_button() {
 	}
 }
 
+void donut_detected() { // defines
+	pros::Motor chain (14, pros::MotorGearset::green); //5.5
+	pros::Controller ctrl (CONTROLLER_MASTER);
+
+	chain.set_brake_mode(pros::MotorBrake::brake);
+	ctrl.rumble(".");
+	pros::delay(90);
+	chain.brake();
+	pros::delay(1);
+}
+
+void donut_not_detected() { //define
+	pros::Motor chain (14, pros::MotorGearset::green); //5.5
+	//chain code (roller is indep. of color sort)
+	chain.set_brake_mode(pros::MotorBrake::coast);	
+}
 void autonomous() {
 	//comp control mode flag
 	pros::lcd::print(5, "Driver Control");
@@ -134,7 +154,14 @@ void opcontrol() {
 		//color sort
 		pros::vision_object_s_t flingBlue = vision.get_by_sig(0, 1); //sorts out red donuts
 		pros::vision_object_s_t flingRed = vision.get_by_sig(0, 2); //sorts out blue donuts
-
+		if (chain.get_brake_mode() == pros::MotorBrake::coast){
+				if(ctrl.get_digital(DIGITAL_R2)) {
+					chain.move(200);
+				}
+				else if(ctrl.get_digital(DIGITAL_R1)) {
+					chain.move(-200);
+				}
+		}
 		//disable color sort double keybind
 		if(ctrl.get_digital(DIGITAL_X) && ctrl.get_digital(DIGITAL_UP)) {
 			sortedColor = 2;
@@ -142,58 +169,22 @@ void opcontrol() {
 		else {
 			sortedColor = sortedColor;
 		}
+		pros::Task color_sort([flingRed, flingBlue]{ // color checking task
+				if(sortedColor) { //keep blue fling red
+				if(flingRed.signature == 1) {donut_detected();}
+				else {donut_not_detected();}
+				}
+				else { //the other 2
+				if(sortedColor == 1) {
+					if(flingBlue.signature == 1) {donut_detected();}
+					else {donut_not_detected();}
+				}
+				else if(sortedColor == 2) {donut_not_detected();}
+				}
+				pros::delay(10);
 
-		if(sortedColor) { //keep blue fling red
-			if(flingRed.signature == 1) {
-				chain.set_brake_mode(pros::MotorBrake::brake);
-				ctrl.rumble(".");
-				pros::delay(90);
-				chain.brake();
-				pros::delay(1);
-			}
-			else {
-				//chain code (roller is indep. of color sort)
-				chain.set_brake_mode(pros::MotorBrake::coast);	
-				if(ctrl.get_digital(DIGITAL_R2)) {
-					chain.move(200);
-				}
-				else if(ctrl.get_digital(DIGITAL_R1)) {
-					chain.move(-200);
-				}
-			}
-		}
-		else { //the other 2
-			if(sortedColor == 1) {
-				if(flingBlue.signature == 1) {
-					chain.set_brake_mode(pros::MotorBrake::brake);
-					ctrl.rumble(".");
-					pros::delay(90);
-					chain.brake();
-					pros::delay(1);
-				}
-				else {
-					//chain code (roller is indep. of color sort)
-					chain.set_brake_mode(pros::MotorBrake::coast);	
-					if(ctrl.get_digital(DIGITAL_R2)) {
-						chain.move(200);
-					}
-					else if(ctrl.get_digital(DIGITAL_R1)) {
-						chain.move(-200);
-					}
-				}
-			}
-			else if(sortedColor == 2) {
-				//chain code (roller is indep. of color sort)
-				chain.set_brake_mode(pros::MotorBrake::coast);	
-				if(ctrl.get_digital(DIGITAL_L2)) {
-					chain.move(200);
-				}
-				else if(ctrl.get_digital(DIGITAL_L1)) {
-					chain.move(-200);
-				}
-			}
-		}
-		
+		});
+
 		//roller
 		if(ctrl.get_digital(DIGITAL_R2)) {
 			roller.move(200);
