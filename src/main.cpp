@@ -17,9 +17,13 @@
 int sortedColor; //0 = keep blue fling red, 1 = keep red fling blue, 2 = keep all no fling
 bool autonColor; //T = blue, F = red
 bool autonSide; //T = close, F = far
-int wheelCirc = 220; // in mm
-int driveEncoders = 300; //ticks per rev
-double trackWidth = 9.81 * 25.4; //mm
+const int wheelCirc = 220; // in mm
+const int driveEncoders = 300; //ticks per rev
+const double trackWidth = 9.81 * 25.4; //conversion to mm
+const int lbNumStates = 3;
+int lbStates[lbNumStates] = {0, 3000, 20000}; //in centidegrees (remove 2 zeroes for deg value)
+int lbCurrState = 0;
+int lbTarget = 0;
 
 //defining constructors for everything lol
 //defining motors
@@ -34,12 +38,6 @@ pros::Vision vision (10);
 pros::Rotation lbRot (9);
 //defining controller
 pros::Controller ctrl (CONTROLLER_MASTER);
-
-void initialize() {
-	pros::lcd::initialize();
-	pros::lcd::print(5, "Initialized");
-	ctrl.rumble("-");
-}
 
 //lcd stuffs
 void on_left_button() {
@@ -84,7 +82,7 @@ void on_right_button() {
 	}
 }
 
-//color sort funcs
+//driver control funcs
 void donut_detected() { // define
 	chain.set_brake_mode(pros::MotorBrake::brake); //to effectively fling
 	ctrl.rumble("."); //alerts driver
@@ -96,6 +94,25 @@ void donut_detected() { // define
 void donut_not_detected() { //define
 	//resets it to coast when not sorting
 	chain.set_brake_mode(pros::MotorBrake::coast);	
+}
+
+void lbNextState(bool dir) {
+	if(dir) {
+		if(lbCurrState >= (lbNumStates - 1)) {lbCurrState = 0;}
+		else {lbCurrState++;}
+	}
+	else {
+		if(lbCurrState <= 0) {lbCurrState = (lbNumStates - 1);}
+		else {lbCurrState--;}
+	}
+	lbTarget = lbStates[lbCurrState];
+}
+
+void lbControl() {
+	double kp = 1.4; //reactivity of the control
+	double error = lbTarget - lbRot.get_position();
+	double velocity = kp * error;
+	lb.move(velocity);
 }
 
 //autonomous functions
@@ -139,6 +156,20 @@ void turn(double degrees, bool dir, int rpm) {
 	}
 
 	pros::delay(pause);
+}
+
+//actual code
+void initialize() {
+	pros::lcd::initialize();
+	pros::lcd::print(5, "Initialized");
+	ctrl.rumble("-");
+
+	pros::Task lbControlTask ([]{
+		while(true) {
+			lbControl();
+			pros::delay(10);
+		}
+	});
 }
 
 void autonomous() {
@@ -248,7 +279,19 @@ void opcontrol() {
 		}
 
 		//lady brown (future)
-		//using set positions
+		bool toggle = true;
+		if(ctrl.get_digital_new_press(DIGITAL_DOWN)) {toggle = !toggle;}
+
+		if(toggle) {
+			//using set positions
+			if(ctrl.get_digital_new_press(DIGITAL_L1)) {lbNextState(false);} //down cycling
+			else if(ctrl.get_digital_new_press(DIGITAL_L2)) {lbNextState(true);} //up cycling
+		}
+		else {
+			if(ctrl.get_digital(DIGITAL_L1)) {lb.move_velocity(-100);} //down controlled motion
+			else if(ctrl.get_digital(DIGITAL_L2)) {lb.move_velocity(100);} //up controlled motion
+			else {lb.move(0);} //stationary
+		}
 
 		//mogo mech (future)
 		if(ctrl.get_digital(DIGITAL_Y)) {
