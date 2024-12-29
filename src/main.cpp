@@ -90,15 +90,18 @@ void lbControl() {
 }
 
 //autonomous functions
-void drive(int inDist, bool dir, int rpm) {
-    left.tare_position();
+//to others; vs code adds the comment above a func to the func's tooltip when called upon
+
+//Moves the robot forward and backward
+void drive(int inDist, bool forward, int rpm) {
+    left.tare_position();// same logic here when naming the bool as "forward"
     right.tare_position();
     double mmDist = inDist * 25.4;
     double rotations = round(10*(mmDist / wheelCirc)) * 0.1;
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60000;
 
-    if(dir) { //front
+    if(forward) { //front
         left.move_absolute(ticks, rpm);
         right.move_absolute(ticks, rpm);
     }
@@ -110,7 +113,8 @@ void drive(int inDist, bool dir, int rpm) {
     pros::delay(pause + 1000);
 }
 
-void turn(double degrees, bool dir, int rpm) {
+//Rotates the robot left or right
+void turn(double degrees, bool turnleft, int rpm) {
     left.tare_position();
     right.tare_position();
     double turnCirc = std::numbers::pi * trackWidth;
@@ -119,7 +123,7 @@ void turn(double degrees, bool dir, int rpm) {
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60 * 1000;
 
-    if(dir) { //left
+    if(turnleft) { //left
         left.move_absolute(-1 * ticks, rpm);
         right.move_absolute(ticks, rpm);
     }
