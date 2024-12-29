@@ -72,12 +72,12 @@ void donut_not_detected() { //define
 
 void lbNextState(bool dir) {
     if(dir) {
-        if(lbCurrState >= (lbNumStates - 1)) {lbCurrState = 0;}
-        else {lbCurrState++;}
+		lbCurrState++;
+        if(lbCurrState >= (lbNumStates)) {lbCurrState = 0;}
     }
     else {
-        if(lbCurrState <= 0) {lbCurrState = (lbNumStates - 1);}
-        else {lbCurrState--;}
+        lbCurrState--;
+		if(lbCurrState < 0) {lbCurrState = (lbNumStates - 1);}
     }
     lbTarget = lbStates[lbCurrState];
 }
@@ -261,8 +261,8 @@ void opcontrol() {
                     if(flingBlue.signature == 1) {donut_detected();}
                     else {donut_not_detected();}
                 }
-                else if(sortedColor == 2) {donut_not_detected();}
-            }
+                else {donut_not_detected();} // catch all just in case            
+			}
             pros::delay(10);
         });
 
