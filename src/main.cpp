@@ -40,7 +40,7 @@ pros::Controller ctrl (CONTROLLER_MASTER);
 
 //lcd stuffs
 void on_left_button() {
-    if(sortedColor <= 2 && sortedColor >= 0) {
+    if(0 <= sortedColor && sortedColor < 2) {
         sortedColor++;
     }
     else {
@@ -67,17 +67,19 @@ void donut_detected() { // define
 
 void donut_not_detected() { //define
     //resets it to coast when not sorting
-    chain.set_brake_mode(pros::MotorBrake::coast);  
+    chain.set_brake_mode(pros::MotorBrake::coast);
+	/* the rest of donut_not_detected() is allowing some controls
+	but that must be put in the while (true) loop*/  
 }
 
-void lbNextState(bool dir) {
-    if(dir) {
-        if(lbCurrState >= (lbNumStates - 1)) {lbCurrState = 0;}
-        else {lbCurrState++;}
+void lbNextState(bool positiveIndex) {
+    if(positiveIndex) { // Go to drive func to see why I named it this
+		lbCurrState++;
+        if(lbCurrState >= (lbNumStates)) {lbCurrState = 0;}
     }
     else {
-        if(lbCurrState <= 0) {lbCurrState = (lbNumStates - 1);}
-        else {lbCurrState--;}
+        lbCurrState--;
+		if(lbCurrState < 0) {lbCurrState = (lbNumStates - 1);}
     }
     lbTarget = lbStates[lbCurrState];
 }
@@ -90,15 +92,18 @@ void lbControl() {
 }
 
 //autonomous functions
-void drive(int inDist, bool dir, int rpm) {
-    left.tare_position();
+//to others; vs code adds the comment above a func to the func's tooltip when called upon
+
+//Moves the robot forward and backward
+void drive(int inDist, bool forward, int rpm) {
+    left.tare_position();// same logic here when naming the bool as "forward"
     right.tare_position();
-    double mmDist = inDist * 25.4;
+    double mmDist = inDist * 25.4; // in = inches
     double rotations = round(10*(mmDist / wheelCirc)) * 0.1;
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60000;
 
-    if(dir) { //front
+    if(forward) { //front
         left.move_absolute(ticks, rpm);
         right.move_absolute(ticks, rpm);
     }
@@ -107,10 +112,11 @@ void drive(int inDist, bool dir, int rpm) {
         right.move_absolute(-1 * ticks, rpm);
     }
 
-    pros::delay(pause + 1000);
+    pros::delay(pause + 100);// @techsupport101 I changed this from 1000 to shorten it
 }
 
-void turn(double degrees, bool dir, int rpm) {
+//Rotates the robot left or right
+void turn(double degrees, bool turnLeft, int rpm) {
     left.tare_position();
     right.tare_position();
     double turnCirc = std::numbers::pi * trackWidth;
@@ -119,7 +125,7 @@ void turn(double degrees, bool dir, int rpm) {
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60 * 1000;
 
-    if(dir) { //left
+    if(turnLeft) { //left
         left.move_absolute(-1 * ticks, rpm);
         right.move_absolute(ticks, rpm);
     }
@@ -142,6 +148,7 @@ void initialize() {
             pros::delay(10);
         }
     });
+	// the color sort task can't be put here due to some issue with defining the color signatures?
 }
 
 void autonomous() {
@@ -157,7 +164,7 @@ void opcontrol() {
     //comp control mode flag
     pros::lcd::print(5, "Driver Control");
 
-    //setting motor brake (chain changes so it is set in whiletrue)
+    //setting motor brake (chain changes so it is set in while (true))
     left.set_brake_mode_all(pros::MotorBrake::coast);
     right.set_brake_mode_all(pros::MotorBrake::coast);
     lb.set_brake_mode(pros::MotorBrake::brake);
@@ -261,8 +268,8 @@ void opcontrol() {
                     if(flingBlue.signature == 1) {donut_detected();}
                     else {donut_not_detected();}
                 }
-                else if(sortedColor == 2) {donut_not_detected();}
-            }
+                else {donut_not_detected();} // catch all just in case            
+			}
             pros::delay(10);
         });
 
