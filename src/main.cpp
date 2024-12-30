@@ -102,15 +102,11 @@ void drive(int inDist, bool forward, int rpm) {
     double rotations = round(10*(mmDist / wheelCirc)) * 0.1;
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60000;
-
-    if(forward) { //front
-        left.move_absolute(ticks, rpm);
-        right.move_absolute(ticks, rpm);
+    if(!forward) {//checks if forward = false (reverse direction)
+        ticks = -ticks;
     }
-    else { //back
-        left.move_absolute(-1 * ticks, rpm);
-        right.move_absolute(-1 * ticks, rpm);
-    }
+    left.move_absolute(ticks, rpm);
+    right.move_absolute(ticks, rpm);
 
     pros::delay(pause + 100);// @techsupport101 I changed this from 1000 to shorten it
 }
@@ -148,30 +144,12 @@ void initialize() {
             pros::delay(10);
         }
     });
-	// the color sort task can't be put here due to some issue with defining the color signatures?
-}
-
-void autonomous() {
-    //comp control mode flag
-    pros::lcd::print(5, "Autonomous");
-
-    //test auto
-    drive(24, true, 100);
-    turn(90, false, 50);
-}
-
-void opcontrol() {
-    //comp control mode flag
-    pros::lcd::print(5, "Driver Control");
-
-    //setting motor brake (chain changes so it is set in while (true))
-    left.set_brake_mode_all(pros::MotorBrake::coast);
-    right.set_brake_mode_all(pros::MotorBrake::coast);
-    lb.set_brake_mode(pros::MotorBrake::brake);
-    mogo.set_brake_mode(pros::MotorBrake::brake);
-    mogo.set_zero_position(0);
-
-    while(true) {
+	
+    // the color sort task can't be put here due to some issue with defining the color signatures?
+    
+    pros::lcd::print(0, "hi"); // I put it here so it doesn't reccur in the task
+    
+    pros::Task lcdInfo ([]{
         /*
         lcd layout (max 8 lines):
         0: hi (can be changed/removed later)
@@ -181,7 +159,6 @@ void opcontrol() {
         4: temp flags - overheat or not
         5: comp ctrl mode flag - what mode it is in right now
         */
-        pros::lcd::print(0, "hi");
 
         //button output stuffs
         if(sortedColor == 0) {
@@ -207,7 +184,30 @@ void opcontrol() {
         else {
             pros::lcd::print(3, "Right Button: Far Side Auton");
         }
-        
+    });
+}
+
+void autonomous() {
+    //comp control mode flag
+    pros::lcd::print(5, "Autonomous");
+
+    //test auto
+    drive(24, true, 100);
+    turn(90, false, 50);
+}
+
+void opcontrol() {
+    //comp control mode flag
+    pros::lcd::print(5, "Driver Control");
+
+    //setting motor brake (chain changes so it is set in while (true))
+    left.set_brake_mode_all(pros::MotorBrake::coast);
+    right.set_brake_mode_all(pros::MotorBrake::coast);
+    lb.set_brake_mode(pros::MotorBrake::brake);
+    mogo.set_brake_mode(pros::MotorBrake::brake);
+    mogo.set_zero_position(0);
+
+    while(true) {
         //temp flags
         float dtLeftOT = ((round(10.0*((left.get_temperature(0) + left.get_temperature(1) + left.get_temperature(2))/3.0)))/10.0);
         float dtRightOT = ((round(10.0*((right.get_temperature(0) + right.get_temperature(1) + right.get_temperature(2))/3.0)))/10.0);
@@ -290,9 +290,10 @@ void opcontrol() {
 
         //mogo mech
         mogo.set_zero_position(mogo.get_position());
-        if(ctrl.get_digital(DIGITAL_RIGHT)) {mogo.move_absolute(-900, 200);}
-        else {mogo.move_absolute(0, 200);}
-
+/*DO*/  if(ctrl.get_digital(DIGITAL_RIGHT)) {mogo.move_absolute(-900, 200);} 
+/*NOT*/ else {mogo.move_absolute(0, 200);} 
+/*TOUCH*/
+/*>:(    <--Also that commenting is kinda cool ngl*/
         pros::delay(2);
     }
 }
