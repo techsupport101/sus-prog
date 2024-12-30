@@ -40,7 +40,7 @@ pros::Controller ctrl (CONTROLLER_MASTER);
 
 //lcd stuffs
 void on_left_button() {
-    if(sortedColor <= 2 && sortedColor >= 0) {
+    if(0 <= sortedColor && sortedColor < 2) {
         sortedColor++;
     }
     else {
@@ -67,11 +67,13 @@ void donut_detected() { // define
 
 void donut_not_detected() { //define
     //resets it to coast when not sorting
-    chain.set_brake_mode(pros::MotorBrake::coast);  
+    chain.set_brake_mode(pros::MotorBrake::coast);
+	/* the rest of donut_not_detected() is allowing some controls
+	but that must be put in the while (true) loop*/  
 }
 
-void lbNextState(bool dir) {
-    if(dir) {
+void lbNextState(bool positiveIndex) {
+    if(positiveIndex) { // Go to drive func to see why I named it this
 		lbCurrState++;
         if(lbCurrState >= (lbNumStates)) {lbCurrState = 0;}
     }
@@ -96,7 +98,7 @@ void lbControl() {
 void drive(int inDist, bool forward, int rpm) {
     left.tare_position();// same logic here when naming the bool as "forward"
     right.tare_position();
-    double mmDist = inDist * 25.4;
+    double mmDist = inDist * 25.4; // in = inches
     double rotations = round(10*(mmDist / wheelCirc)) * 0.1;
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60000;
@@ -110,7 +112,7 @@ void drive(int inDist, bool forward, int rpm) {
         right.move_absolute(-1 * ticks, rpm);
     }
 
-    pros::delay(pause + 1000);
+    pros::delay(pause + 100);// @techsupport101 I changed this from 1000 to shorten it
 }
 
 //Rotates the robot left or right
@@ -146,6 +148,7 @@ void initialize() {
             pros::delay(10);
         }
     });
+	// the color sort task can't be put here due to some issue with defining the color signatures?
 }
 
 void autonomous() {
@@ -161,7 +164,7 @@ void opcontrol() {
     //comp control mode flag
     pros::lcd::print(5, "Driver Control");
 
-    //setting motor brake (chain changes so it is set in whiletrue)
+    //setting motor brake (chain changes so it is set in while (true))
     left.set_brake_mode_all(pros::MotorBrake::coast);
     right.set_brake_mode_all(pros::MotorBrake::coast);
     lb.set_brake_mode(pros::MotorBrake::brake);
