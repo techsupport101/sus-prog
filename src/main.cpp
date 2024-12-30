@@ -114,7 +114,7 @@ void drive(int inDist, bool forward, int rpm) {
 }
 
 //Rotates the robot left or right
-void turn(double degrees, bool turnleft, int rpm) {
+void turn(double degrees, bool turnLeft, int rpm) {
     left.tare_position();
     right.tare_position();
     double turnCirc = std::numbers::pi * trackWidth;
@@ -123,7 +123,7 @@ void turn(double degrees, bool turnleft, int rpm) {
     double ticks = round(rotations * driveEncoders);
     double pause = (rotations / rpm) * 60 * 1000;
 
-    if(turnleft) { //left
+    if(turnLeft) { //left
         left.move_absolute(-1 * ticks, rpm);
         right.move_absolute(ticks, rpm);
     }
