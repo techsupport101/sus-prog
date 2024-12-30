@@ -3,7 +3,7 @@ name: Feature request
 about: Suggest an idea for this project
 title: New feature regarding [insert feature]
 labels: enhancement
-assignees: MarchEgg, Turtl3God7, TurtleGod7, techsupport101
+assignees: Turtl3God7, TurtleGod7, techsupport101
 
 ---
 
@@ -20,8 +20,8 @@ A clear and concise description of any alternative solutions or features you've 
 Add any other context or screenshots about the feature request here.
 
 **Add tags**
-Add any other tags other than `bug` like:
+Add any other tags other than `enhancement` like:
 - Auton related:
-Add `competition` and `auton` 
+Add `competition`, `auton skills`, and `auton` 
 - Opcontrol related:
-Add `skills`, `driver`, and `competition`
+Add `skills`, `driver`, `driver skills`, and `competition`

@@ -3,7 +3,7 @@ name: Issue report
 about: Create a report to help us improve
 title: Issue with [insert issue]
 labels: bug
-assignees: MarchEgg, Turtl3God7, TurtleGod7, techsupport101
+assignees: Turtl3God7, TurtleGod7, techsupport101
 
 ---
 
@@ -22,6 +22,6 @@ Add any other context about the problem here.
 **Add tags**
 Add any other tags other than `bug` like:
 - Auton related:
-Add `competition` and `auton` 
+Add `competition`, `auton skills`, and `auton` 
 - Opcontrol related:
-Add `skills`, `driver`, and `competition`
+Add `skills`, `driver`, `driver skills`, and `competition`
