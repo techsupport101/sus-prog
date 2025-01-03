@@ -26,19 +26,24 @@ int lbCurrState = 0;
 int lbTarget = 0;
 
 //defining constructors for everything lol
-//defining motors
-pros::MotorGroup left ({-1, 2, -3}, pros::MotorGearset::blue);
+
+pros::MotorGroup left ({-1, 2, -3}, pros::MotorGearset::blue); //motors start here
 pros::MotorGroup right({8, -9, 10}, pros::MotorGearset::blue);
 pros::Motor chain (7, pros::MotorGearset::blue);
 pros::Motor lb (12, pros::MotorGearset::green); //5.5
 pros::Motor mogo (6, pros::MotorGearset::green); //5.5
-//defining sensors
-pros::Vision vision (4);
+pros::Vision vision (4); //sensors start here
 pros::Rotation lbRot (11);
-//defining controller
-pros::Controller ctrl (CONTROLLER_MASTER);
+pros::Imu inertial (13);
+pros::Controller ctrl (CONTROLLER_MASTER); //controller here
+
+//defining color sort signatures
+pros::vision_object_s_t flingBlue = vision.get_by_sig(0, 1); //sorts out red donuts
+pros::vision_object_s_t flingRed = vision.get_by_sig(0, 2); //sorts out blue donuts
 
 //lcd stuffs
+
+//cycles color sort
 void on_left_button() {
     if(0 <= sortedColor && sortedColor < 2) {
         sortedColor++;
@@ -48,15 +53,19 @@ void on_left_button() {
     }
 }
 
+//cycles auton color
 void on_center_button() {
     autonColor = !autonColor;
 }
 
+//cycles auton side
 void on_right_button() {
     autonSide = !autonSide;
 }
 
 //driver control funcs
+
+//i see donut :)
 void donut_detected() { // define
     chain.set_brake_mode(pros::MotorBrake::brake); //to effectively fling
     ctrl.rumble("."); //alerts driver
@@ -65,6 +74,7 @@ void donut_detected() { // define
     pros::delay(1);
 }
 
+//i no see donut :(
 void donut_not_detected() { //define
     //resets it to coast when not sorting
     chain.set_brake_mode(pros::MotorBrake::coast);
@@ -72,6 +82,7 @@ void donut_not_detected() { //define
 	but that must be put in the while (true) loop*/  
 }
 
+//cycle LB states
 void lbNextState(bool positiveIndex) {
     if(positiveIndex) { // Go to drive func to see why I named it this
 		lbCurrState++;
@@ -83,7 +94,8 @@ void lbNextState(bool positiveIndex) {
     }
     lbTarget = lbStates[lbCurrState];
 }
-
+ 
+//moves LB to next state
 void lbControl() {
     double kp = 1.4; //reactivity of the control
     double error = lbTarget - lbRot.get_position();
@@ -94,7 +106,7 @@ void lbControl() {
 //autonomous functions
 //to others; vs code adds the comment above a func to the func's tooltip when called upon
 
-//Moves the robot forward and backward
+//moves the robot forward and backward
 void drive(int inDist, bool forward, int rpm) {
     left.tare_position();// same logic here when naming the bool as "forward"
     right.tare_position();
@@ -111,7 +123,7 @@ void drive(int inDist, bool forward, int rpm) {
     pros::delay(pause + 100);// @techsupport101 I changed this from 1000 to shorten it
 }
 
-//Rotates the robot left or right
+//rotates the robot using encoders (buggy)
 void turn(double degrees, bool turnLeft, int rpm) {
     left.tare_position();
     right.tare_position();
@@ -133,8 +145,57 @@ void turn(double degrees, bool turnLeft, int rpm) {
     pros::delay(pause + 100);
 }
 
+//turn to a specific heading
+void toHeading(double degrees, int rpm) {
+    double kp = 0.5;
+    bool loop = true;
+    while(loop) {
+        double error = degrees - inertial.get_heading();
+        double turnControl = kp * error;
+
+        left.move(turnControl * -1);
+        right.move(turnControl);
+
+        //to break out of while true
+        if(error <= 0.5 && error >= -0.5) {
+            loop = false;
+        }
+    }
+    pros::delay(100);
+}
+
+//old turn func but hopefully better
+void inertialTurn(double degrees, int rpm) {
+    double kp = 0.5;
+    //remember: sensor thinks CCW is negative, we say CCW is positive
+    //so every time we get the inertial sensor rotation we mult by -1
+    double initPos = -1 * inertial.get_rotation();
+    double finalPos = initPos + degrees;
+    bool loop = true;
+    while(loop) {
+        double needToTurn = finalPos - (-1 * inertial.get_rotation());
+        double turnControl = kp * needToTurn;
+
+        left.move(turnControl * -1);
+        right.move(turnControl);
+
+        //to break out of while true
+        if(needToTurn <= 0.5 && needToTurn >= -0.5) {
+            loop = false;
+        }
+    }
+
+    pros::delay(100);
+}
+
+
 //actual code
+
+//code starts
 void initialize() {
+    pros::vision_object_s_t flingBlue = vision.get_by_sig(0, 1); //sorts out red donuts
+        pros::vision_object_s_t flingRed = vision.get_by_sig(0, 2); //sorts out blue donuts
+
     pros::lcd::initialize();
     pros::lcd::print(5, "Initialized");
 
@@ -145,7 +206,20 @@ void initialize() {
         }
     });
 	
-    // the color sort task can't be put here due to some issue with defining the color signatures?
+    pros::Task color_sort([flingRed, flingBlue]{ // color checking task
+            if(sortedColor == 0) { //keep blue fling red
+                if(flingRed.signature == 1) {donut_detected();}
+                else {donut_not_detected();}
+            }
+            else { //the other 2
+                if(sortedColor == 1) {
+                    if(flingBlue.signature == 1) {donut_detected();}
+                    else {donut_not_detected();}
+                }
+                else {donut_not_detected();} // catch all just in case            
+			}
+            pros::delay(10);
+        });
     
     pros::lcd::print(0, "hi"); // I put it here so it doesn't reccur in the task
     
@@ -187,16 +261,26 @@ void initialize() {
     });
 }
 
+//robot not roboting :(
+void disabled() {
+    pros::lcd::print(5, "Disabled");
+}
+
+//VEX AI moment
 void autonomous() {
     //comp control mode flag
     pros::lcd::print(5, "Autonomous");
 
-    //test auto
+    /*test auto:
     drive(24, true, 100);
-    turn(90, false, 50);
+    turn(90, false, 50);*/
 }
 
+//the fun part
 void opcontrol() {
+    pros::vision_object_s_t flingBlue = vision.get_by_sig(0, 1); //sorts out red donuts
+    pros::vision_object_s_t flingRed = vision.get_by_sig(0, 2); //sorts out blue donuts
+
     //comp control mode flag
     pros::lcd::print(5, "Driver Control");
 
@@ -233,10 +317,6 @@ void opcontrol() {
         left.move(powerL);
         right.move(powerR);
 
-        //color sort
-        pros::vision_object_s_t flingBlue = vision.get_by_sig(0, 1); //sorts out red donuts
-        pros::vision_object_s_t flingRed = vision.get_by_sig(0, 2); //sorts out blue donuts
-
         //intake
         if (chain.get_brake_mode() == pros::MotorBrake::coast){
             if(ctrl.get_digital(DIGITAL_L1)) {
@@ -257,22 +337,6 @@ void opcontrol() {
             sortedColor = sortedColor;
         }
 
-        //actual color sort
-        pros::Task color_sort([flingRed, flingBlue]{ // color checking task
-            if(sortedColor == 0) { //keep blue fling red
-                if(flingRed.signature == 1) {donut_detected();}
-                else {donut_not_detected();}
-            }
-            else { //the other 2
-                if(sortedColor == 1) {
-                    if(flingBlue.signature == 1) {donut_detected();}
-                    else {donut_not_detected();}
-                }
-                else {donut_not_detected();} // catch all just in case            
-			}
-            pros::delay(10);
-        });
-
         //lady brown (future)
         bool toggle = true;
         if(ctrl.get_digital_new_press(DIGITAL_DOWN)) {toggle = !toggle;}
@@ -288,7 +352,7 @@ void opcontrol() {
             else {lb.move(0);} //stationary
         }
 
-        //mogo mech
+        //mogo mech (need to update to use pneumatics)
         mogo.set_zero_position(mogo.get_position());
 /*DO*/  if(ctrl.get_digital(DIGITAL_RIGHT)) {mogo.move_absolute(-900, 200);} 
 /*NOT*/ else {mogo.move_absolute(0, 200);} 
