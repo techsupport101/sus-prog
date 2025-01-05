@@ -8,6 +8,6 @@ If you would like to give us any feedback, please report it as an issue in Githu
 
 Have fun looking through our code!
 
-[^1]: Our programmers are @TurtleGod7 and @techsupport101
+[^1]: Our programmers are @TurtleGod7, @techsupport101, and @dareckolo
 [^2]: Our mentor is @MarchEgg
 [^3]: This code was developed by @KevinY145
